@@ -1,6 +1,5 @@
 "use strict";
 
-// Function to load SVG from a file and return it as an element
 function loadSvgElement(file, svg, x, y, width, height, className) {
     return fetch(file)
         .then(response => response.text())
@@ -18,94 +17,167 @@ function loadSvgElement(file, svg, x, y, width, height, className) {
         });
 }
 
-// Function to generate asteroids
-function generateAsteroids(size1, ast, x, y, aList) {
+function generateAsteroids(size, x, y, aList) {
     const svg = document.getElementById("canvas");
 
-    loadSvgElement('circle.svg', svg, x, y, size1, size1, 'asteroid')
-        .then(asteroid1 => {
-            aList.push(asteroid1);
+    loadSvgElement('circle.svg', svg, x, y, size, size, 'asteroid')
+        .then(asteroid => {
+            aList.push(asteroid);
 
-            Observable.interval(30) // Increased speed of asteroids
-                .subscribe(() => {
-                    let newY = Number(asteroid1.getAttribute('y')) + 5; // Faster movement
-                    if (newY > 600) { // Reset position if it goes out of bounds
-                        newY = -size1;
-                        asteroid1.setAttribute('x', String(Math.random() * 600)); // Random x position
-                    }
-                    asteroid1.setAttribute('y', String(newY));
-                });
+            const speed = 3;
+
+            function moveAsteroid() {
+                if (!asteroid) return;
+
+                let newY = Number(asteroid.getAttribute('y')) + speed;
+                asteroid.setAttribute('y', String(newY));
+
+                requestAnimationFrame(moveAsteroid);
+            }
+
+            moveAsteroid();
         });
 }
 
-// Main game function
+function checkCollision(ship, asteroid) {
+    const shipX = Number(ship.getAttribute('x'));
+    const shipY = Number(ship.getAttribute('y'));
+    const shipWidth = Number(ship.getAttribute('width'));
+    const shipHeight = Number(ship.getAttribute('height'));
+
+    const asteroidX = Number(asteroid.getAttribute('x'));
+    const asteroidY = Number(asteroid.getAttribute('y'));
+    const asteroidWidth = Number(asteroid.getAttribute('width'));
+    const asteroidHeight = Number(asteroid.getAttribute('height'));
+
+    return (
+        shipX < asteroidX + asteroidWidth &&
+        shipX + shipWidth > asteroidX &&
+        shipY < asteroidY + asteroidHeight &&
+        shipY + shipHeight > asteroidY
+    );
+}
+
+function endGame(subscriptions, svg) {
+    subscriptions.forEach(sub => {
+        if (sub && typeof sub.unsubscribe === 'function') {
+            sub.unsubscribe();
+        }
+    });
+
+    while (svg.firstChild) {
+        svg.removeChild(svg.firstChild);
+    }
+
+    const overlay = document.createElement('div');
+    overlay.classList.add('game-over-overlay');
+    overlay.style.position = "fixed";
+    overlay.style.width = "100%";
+    overlay.style.height = "100%";
+    overlay.style.zIndex = 9999;
+    overlay.style.backgroundColor = "rgba(0, 0, 0, 0.7)";
+    overlay.style.display = "flex";
+    overlay.style.alignItems = "center";
+    overlay.style.justifyContent = "center";
+    
+    const gameOverMessage = document.createElement('div');
+    gameOverMessage.classList.add('game-over-message');
+    gameOverMessage.textContent = "Game Over";
+    gameOverMessage.style.color = "white";
+    gameOverMessage.style.fontSize = "3em";
+    
+    overlay.appendChild(gameOverMessage);
+    document.body.appendChild(overlay);
+}
+
 function asteroids() {
     const svg = document.getElementById("canvas");
-    let rec = new Elem(svg, "rect")
+    new Elem(svg, "rect")
         .attr("width", "100%")
         .attr("height", "100%")
         .attr("x", 0)
         .attr("y", 0)
         .attr("fill", "black");
 
-    var astlist = [];
+    let astlist = [];
+    let subscriptions = [];
+    let gameOver = false;
+    let missedCount = 0;
 
-    // Ship at the bottom of the canvas (slightly bigger)
-    loadSvgElement('ship.svg', svg, 300, 500, 80, 40, 'ship') // Increased size
+    const missedCounter = document.getElementById('missed-counter');
+    const missedMessage = document.getElementById('missed-message');
+
+    loadSvgElement('ship.svg', svg, 300, 500, 80, 40, 'ship')
         .then(ship => {
-            // Mouse movement for ship control
             const mousemove = Observable.fromEvent(svg, 'mousemove');
-            mousemove.subscribe(({ clientX }) => {
-                const svgRect = svg.getBoundingClientRect();
-                const x = Math.min(Math.max(clientX - svgRect.left - 40, 0), 520); // Adjusted for ship width
-                ship.setAttribute('x', x);
-                ship.setAttribute('y', 500);
+            const mousemoveSub = mousemove.subscribe(({ clientX }) => {
+                if (!gameOver) {
+                    const svgRect = svg.getBoundingClientRect();
+                    const x = Math.min(Math.max(clientX - svgRect.left - 40, 0), 520);
+                    ship.setAttribute('x', x);
+                    ship.setAttribute('y', 500);
+                }
             });
 
-            // Asteroids generation
-            Observable.interval(3000) // Increased frequency
+            subscriptions.push(mousemoveSub);
+
+            let asteroidFrequency = 2000;
+            function startGeneratingAsteroids() {
+                const intervalSub = Observable.interval(asteroidFrequency)
+                    .subscribe(() => {
+                        if (!gameOver) {
+                            const numAsteroids = Math.floor(Math.random() * (3 - 2 + 1)) + 2;
+                            for (let i = 0; i < numAsteroids; i++) {
+                                const x = Math.random() * 600;
+                                const size = Math.floor(Math.random() * (70 - 30)) + 30;
+                                generateAsteroids(size, x, -size, astlist);
+                            }
+                        }
+                    });
+
+                subscriptions.push(intervalSub);
+            }
+
+            startGeneratingAsteroids();
+
+            const speedSub = Observable.interval(10000)
                 .subscribe(() => {
-                    const x = Math.random() * 600;
-                    const size1 = Math.floor(Math.random() * (70 - 30)) + 30; // Increased size range
-                    generateAsteroids(size1, new Elem(svg, 'g'), x, -size1, astlist);
+                    if (!gameOver) {
+                        asteroidFrequency = Math.max(500, asteroidFrequency - 500);
+                    }
                 });
 
-            // Bullet shooting
-            let shooting = false; // Flag to indicate if shooting is active
+            subscriptions.push(speedSub);
+
+            let shooting = false;
             const mouseup = Observable.fromEvent(svg, 'mouseup');
             const mousedown = Observable.fromEvent(svg, 'mousedown');
-            mousedown.subscribe(() => {
-                if (!shooting) {
+            const mousedownSub = mousedown.subscribe(() => {
+                if (!shooting && !gameOver) {
                     shooting = true;
 
                     const bullets = [];
-                    const bulletSpeed = 4; // Slower bullet speed
+                    const bulletSpeed = 4;
 
-                    // Create a bullet
                     const bullet = new Elem(svg, 'circle')
-                        .attr("cx", String(Number(ship.getAttribute('x')) + 40)) // Adjusted for ship position
-                        .attr("cy", String(Number(ship.getAttribute('y')) - 10)) // Offset from ship
+                        .attr("cx", String(Number(ship.getAttribute('x')) + 40))
+                        .attr("cy", String(Number(ship.getAttribute('y')) - 10))
                         .attr("r", "4")
                         .attr("fill", "purple");
                     bullets.push(bullet);
 
-                    // Play shooting sound
                     const shootingSound = new Audio('Shooting-sound.wav');
                     shootingSound.play();
 
-                    Observable.interval(10)
-                        .takeUntil(Observable.interval(10000))
-                        .subscribe(() => {
-                            bullets.forEach(b => {
-                                let cy = Number(b.attr('cy')) - bulletSpeed;
-                                b.attr('cy', String(cy));
+                    function moveBullets() {
+                        bullets.forEach(b => {
+                            let cy = Number(b.attr('cy')) - bulletSpeed;
+                            b.attr('cy', String(cy));
 
-                                if (cy < 0) {
-                                    b.elem.remove();
-                                    bullets.splice(bullets.indexOf(b), 1);
-                                }
-
-                                // Check for collision with asteroids
+                            if (cy < 0) {
+                                b.elem.remove();
+                                bullets.splice(bullets.indexOf(b), 1);
+                            } else {
                                 astlist.forEach(asteroid => {
                                     const asteroidX = Number(asteroid.getAttribute('x')) + (Number(asteroid.getAttribute('width')) / 2);
                                     const asteroidY = Number(asteroid.getAttribute('y')) + (Number(asteroid.getAttribute('height')) / 2);
@@ -121,24 +193,62 @@ function asteroids() {
                                         asteroid.remove();
                                         b.elem.remove();
 
-                                        // Update score
                                         let score = Number(document.getElementById('score').textContent.split(': ')[1]);
                                         score += 1;
                                         document.getElementById('score').textContent = `Score: ${score}`;
                                     }
                                 });
-                            });
+                            }
                         });
 
-                    // Allow continuous shooting
-                    mouseup.subscribe(() => {
+                        if (!gameOver) {
+                            requestAnimationFrame(moveBullets);
+                        }
+                    }
+
+                    moveBullets();
+
+                    const mouseupSub = mouseup.subscribe(() => {
                         shooting = false;
                     });
+
+                    subscriptions.push(mouseupSub);
                 }
             });
+
+            subscriptions.push(mousedownSub);
+
+            function gameLoop() {
+                if (gameOver) return;
+
+                astlist.forEach((asteroid, index) => {
+                    let y = Number(asteroid.getAttribute('y'));
+                    if (checkCollision(ship, asteroid)) {
+                        endGame(subscriptions, svg);
+                        gameOver = true;
+                        return;
+                    }
+
+                    if (y > 600 + Number(asteroid.getAttribute('height'))) {
+                        missedCount++;
+                        missedCounter.textContent = `Missed: ${missedCount}`;
+                        if (missedCount > 11) {
+                            missedMessage.style.display = 'block';
+                        }
+                        svg.removeChild(asteroid);
+                        astlist.splice(index, 1);
+                    }
+                });
+
+                requestAnimationFrame(gameLoop);
+            }
+
+            gameLoop();
         });
 }
 
-if (typeof window != 'undefined') window.onload = () => {
-    asteroids();
-};
+if (typeof window !== 'undefined') {
+    window.onload = () => {
+        asteroids();
+    };
+}

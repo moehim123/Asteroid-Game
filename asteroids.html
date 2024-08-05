@@ -23,14 +23,56 @@
             margin-bottom: 20px;
         }
 
+        #container {
+            display: flex;
+            align-items: center;
+        }
+
+        #game-description {
+            position: absolute;
+            left: 10px;
+            top: 98px;
+            font-size: 20px;
+            color: #9d9f9f;
+            width: 200px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            margin-top: 24px;
+        }
+
         svg {
             background-color: rgb(41, 41, 36);
             box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            position: relative;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 20%, rgba(0, 0, 0, 0) 30%),
+                        radial-gradient(circle, rgba(255, 255, 255, 0.15) 20%, rgba(0, 0, 0, 0) 30%),
+                        radial-gradient(circle, rgba(255, 255, 255, 0.2) 20%, rgba(0, 0, 0, 0) 30%),
+                        radial-gradient(circle, rgba(255, 255, 255, 0.25) 20%, rgba(0, 0, 0, 0) 30%);
+            background-blend-mode: multiply;
         }
 
-        #score {
+        #score, #missed-counter {
             font-size: 24px;
             margin-top: 20px;
+            color: white;
+        }
+
+        #missed-message {
+            color: #ff6666;
+            font-size: 24px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        #box {
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 600px;
+            position: relative;
         }
     </style>
     <script src="svgelement.js"></script>
@@ -38,8 +80,20 @@
     <script src="asteroids.js"></script>
 </head>
 <body>
-    <h1>Asteroids</h1>
-    <svg id="canvas" width="600" height="600"></svg>
-    <div id="score">Score: 0</div>
+    <div id="container">
+        <div id="game-description">
+            <h2>Game Description</h2>
+            <p>Navigate the ship using your mouse and avoid the asteroids falling from the top. Shoot the asteroids to increase your score. Survive as long as you can and try to get the highest score!</p>
+        </div>
+        <div>
+            <h1>Asteroids</h1>
+            <svg id="canvas" width="600" height="600"></svg>
+            <div id="box">
+                <div id="score">Score: 0</div>
+                <div id="missed-counter">Missed: 0</div>
+            </div>
+            <div id="missed-message">You missed many asteroids!</div>
+        </div>
+    </div>
 </body>
 </html>
